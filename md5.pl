@@ -1,5 +1,6 @@
-#!perl
+#!/usr/bin/perl
 use strict;	# Enforce some good programming rules
+#use warnings;
 
 use Getopt::Long;
 use Cwd;
@@ -9,9 +10,13 @@ use File::stat;
 
 # md5.pl
 #
-# version 2.0
+# version 2.1
+#
+# I don't know why I didn't add this to the repository a long time ago
+# it's a very old script
 # 
-# calculate md5 value of a file
+# calculate md5 value of a file or string
+# primary use is to recursively hash every file in a directory and subdirectory
 # 
 # flags:
 #
@@ -32,12 +37,17 @@ use File::stat;
 # --[no]debug				display debug information
 # --[no]test				test mode - display file names but do not process
 
+sub xor($$);
+
 my ( $help_param, $file_param, $output_param, $size_param, $name_param, $debug_param, $leftover_param );
 my ( $mode_param, $filter_param, $test_param, $directory_param, $digest_param, $string_param, $recurse_param );
+my ( $version_param );
 my ( $md5, $md5_value, $file_size, $file_stat );
 my ( $output_filename, $output_string, $output_digest );
+my $xor_value;
 
 GetOptions(	'help|?'	=> \$help_param,
+        'version'   =>  \$version_param,
 		'mode=s'	=> \$mode_param,
 		'string=s'	=> \$string_param,
 		'file|f=s'	=> \$file_param,
@@ -58,6 +68,7 @@ $leftover_param = $ARGV[0];
 if ( $debug_param ) {
 	print "Passed Parameters:\n";
 	print "help = $help_param\n";
+	print "version = $version_param\n";
 	print "mode = $mode_param\n";
 	print "string = $string_param\n";
 	print "file = $file_param\n";
@@ -74,10 +85,16 @@ if ( $debug_param ) {
 	print "\n";
 }
 
+# if the user asked for version information, display it and quit
+if ( $version_param ) {
+    print "$0 version 2.1\n";
+    exit;
+}
+
 # if user asked for help or does not pass any parameters, display help message and exit
 if ( $help_param ) {
 	print "md5.pl\n";
-	print "Version 2.0\n\n";
+	print "Version 2.1\n\n";
 	print "Calculates MD5 checksum signatures for files.\n\n";
 	print "Requires Perl 5.8 or later.\n\n";
 	print "Command line parameters:\n\n";
@@ -107,6 +124,7 @@ if ( $help_param ) {
 	print "Default is on if digesting output, otherwise off.\n\n";
 	print "--[no]size | -[no]s - include file size (in bytes) in output.\n";
 	print "Default is on.\n\n";
+	print "--version display version information\n";
 	print "--help | -h - display this message\n";
 	exit;
 }
@@ -162,6 +180,7 @@ if ( $name_param eq undef ) {
 if ( $debug_param ) {
 	print "Final Parameters:\n";
 	print "help = $help_param\n";
+	print "version = $version_param\n";
 	print "mode = $mode_param\n";
 	print "string = $string_param\n";
 	print "file = $file_param\n";
@@ -177,6 +196,9 @@ if ( $debug_param ) {
 	print "leftover = $leftover_param\n";
 	print "\n";
 }
+
+# zero out the rolling XOR value
+$xor_value = "00000000000000000000000000000000";
 
 # from here, what we do depends on the mode
 
@@ -248,6 +270,9 @@ if ( $mode_param eq "file" ) {		# file mode
 		print( OUTPUT_FILE $output_digest );		# write output string
 		if ( $debug_param ) { print "write digest string to output file\n"; }
 		
+		# add rolling XOR value to end of digest file
+		print( OUTPUT_FILE "\n" . $xor_value . "\n" );
+		
 		close( OUTPUT_FILE )				# close output file
 			or warn "Error closing output file\n";
 		if ( $debug_param ) { print "close output file\n"; }
@@ -314,6 +339,10 @@ sub doittoit {
 			# add the output to digest string
 			$output_digest .= "$output_string\n";
 			
+			# XOR the hash value against our rolling value
+			# I believe this works - it seems to in my testing anyway
+			$xor_value = &xor( $xor_value, $md5_value );
+            
 			$output_filename = $_.".md5";	# create .md5 filename
 			if ( $debug_param ) { print "output filename: $output_filename\n"; }
 			
@@ -333,4 +362,20 @@ sub doittoit {
 			} else { print "$output_string\n"; }		# otherwise output to STDIO
 		}
 	}
+}
+
+sub xor($$) {
+    my $param1 = shift(@_);
+    my $param2 = shift(@_);
+    my $formatString = "H" . min( length( $param1 ), length( $param2 ) );
+    my $output = pack( $formatString, $param1 ) ^ pack( $formatString, $param2 );
+    my $outputStr = unpack( $formatString, $output );
+    return( $outputStr );
+}
+
+sub min($$) {
+    my $a = shift(@_);
+    my $b = shift(@_);
+    
+    if ( $a < $b ) { return( $a ) } else { return( $b ); }
 }
