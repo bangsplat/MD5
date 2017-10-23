@@ -10,7 +10,7 @@ use File::stat;
 
 # md5.pl
 #
-# version 2.1
+# version 2.1.1
 #
 # I don't know why I didn't add this to the repository a long time ago
 # it's a very old script
@@ -44,7 +44,7 @@ my ( $mode_param, $filter_param, $test_param, $directory_param, $digest_param, $
 my ( $version_param );
 my ( $md5, $md5_value, $file_size, $file_stat );
 my ( $output_filename, $output_string, $output_digest );
-my $xor_value;
+my ( $xor_value, $total_size_value );
 
 GetOptions(	'help|?'	=> \$help_param,
         'version'   =>  \$version_param,
@@ -199,6 +199,7 @@ if ( $debug_param ) {
 
 # zero out the rolling XOR value
 $xor_value = "00000000000000000000000000000000";
+$total_size_value = 0;
 
 # from here, what we do depends on the mode
 
@@ -271,7 +272,7 @@ if ( $mode_param eq "file" ) {		# file mode
 		if ( $debug_param ) { print "write digest string to output file\n"; }
 		
 		# add rolling XOR value to end of digest file
-		print( OUTPUT_FILE "\n" . $xor_value . "\n" );
+		print( OUTPUT_FILE "\n$xor_value\t$total_size_value\n" );
 		
 		close( OUTPUT_FILE )				# close output file
 			or warn "Error closing output file\n";
@@ -342,6 +343,9 @@ sub doittoit {
 			# XOR the hash value against our rolling value
 			# I believe this works - it seems to in my testing anyway
 			$xor_value = &xor( $xor_value, $md5_value );
+			
+			# add the file size to the total_size_value
+			$total_size_value += $file_size;
             
 			$output_filename = $_.".md5";	# create .md5 filename
 			if ( $debug_param ) { print "output filename: $output_filename\n"; }
